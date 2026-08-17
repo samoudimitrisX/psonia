@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Λίστα Ψωνιών</title>
+<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --card: #ffffff;
+  --primary: #2f6feb;
+  --primary-dark: #1e4fb8;
+  --accent: #ff7a59;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --dimitris: #2f6feb;
+  --inna: #d946ef;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #eef2f7 0%, #f8fafc 100%);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 12px;
+  padding-bottom: 100px;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 1100px; margin: 0 auto; }
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+h2 { font-size: 16px; font-weight: 700; }
+h2 .count { background: var(--primary); color: white; padding: 2px 10px; border-radius: 20px; font-size: 12px; margin-left: 6px; font-weight: 600; }
+
+/* Backup banner */
+.backup-banner {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  color: #92400e;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.backup-banner.show { display: flex; }
+.backup-banner button {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Header */
+.top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.live-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 8px; }
+.live-dot { display: inline-block; width: 8px; height: 8px; background: var(--success); border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.user-picker {
+  display: flex;
+  gap: 8px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+}
+.user-btn {
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--muted);
+  transition: all 0.15s;
+}
+.user-btn.active { color: white; }
+.user-btn.manage-btn { padding: 8px 12px; color: var(--muted); font-size: 16px; }
+.user-btn.manage-btn:hover { color: var(--text); background: #e2e8f0; }
+
+/* Buttons */
+.btn {
+  padding: 10px 18px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.btn:hover { background: var(--primary-dark); }
+.btn-secondary { background: #e5e7eb; color: var(--text); }
+.btn-secondary:hover { background: #d1d5db; }
+.btn-danger { background: var(--danger); }
+.btn-danger:hover { background: #dc2626; }
+.btn-success { background: var(--success); }
+.btn-success:hover { background: #16a34a; }
+.btn-accent { background: var(--accent); }
+.btn-accent:hover { background: #ea6a49; }
+.btn-small { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+.btn-large { padding: 14px 24px; font-size: 16px; border-radius: 12px; }
+
+/* ===== HOME VIEW: Lists grid ===== */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.section-header.collapsible { cursor: pointer; user-select: none; }
+.section-header .chevron { color: var(--muted); font-size: 14px; transition: transform 0.2s; }
+.section-header.collapsed .chevron { transform: rotate(-90deg); }
+.section-body { margin-top: 16px; overflow: hidden; }
+.section-body.collapsed { max-height: 0; margin: 0; }
+
+.lists-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.list-card {
+  background: linear-gradient(135deg, #fff 0%, #fafbfd 100%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  min-height: 130px;
+}
+.list-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(47,111,235,0.15); }
+.list-card.completed { background: #f8fafc; opacity: 0.85; }
+.list-card.completed:hover { border-color: var(--muted); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.list-card .list-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.list-card .list-name { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.list-card .status-badge {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.list-card .status-badge.active { background: #dbeafe; color: #1e40af; }
+.list-card .status-badge.completed { background: #dcfce7; color: #166534; }
+.list-card .list-meta {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.list-card .list-note { font-size: 13px; color: var(--muted); font-style: italic; }
+.list-card .progress-wrap { margin-top: auto; }
+.list-card .progress-bar {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.list-card .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--success)); transition: width 0.3s; border-radius: 3px; }
+.list-card .progress-fill.done { background: var(--success); }
+.list-card .progress-text { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-top: 4px; }
+
+.new-list-card {
+  background: white;
+  border: 2px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 20px;
+  cursor: pointer;
+  text-align: center;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 15px;
+  transition: all 0.15s;
+  min-height: 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.new-list-card:hover { border-color: var(--primary); background: #eff6ff; }
+.new-list-card .plus { font-size: 32px; line-height: 1; }
+
+.empty-state { text-align: center; padding: 30px 20px; color: var(--muted); }
+.empty-state .icon { font-size: 40px; margin-bottom: 8px; opacity: 0.5; }
+
+/* ===== SHOPPING VIEW ===== */
+.shopping-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.back-btn, .menu-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.back-btn:hover, .menu-btn:hover { background: #e2e8f0; }
+
+.list-title-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.list-name-input {
+  font-size: 20px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  outline: none;
+  font-family: inherit;
+  color: var(--text);
+  width: 100%;
+}
+.list-name-input:hover, .list-name-input:focus { background: #f8fafc; }
+.list-meta-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 8px;
+  flex-wrap: wrap;
+}
+.date-badge-inline {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.note-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #f8fafc;
+  color: var(--text);
+  outline: none;
+  transition: all 0.15s;
+}
+.note-input:hover { border-color: var(--border); background: white; }
+.note-input:focus { border-color: var(--primary); background: white; }
+
+/* Add item section */
+.manual-add {
+  display: grid;
+  grid-template-columns: 1fr 56px 70px 90px auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.manual-add input, .manual-add select {
+  padding: 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+  font-family: inherit;
+  background: white;
+  color: var(--text);
+}
+.manual-add input:focus, .manual-add select:focus { border-color: var(--primary); }
+.manual-add select { padding: 12px 8px; cursor: pointer; }
+.emoji-input { text-align: center; font-size: 20px !important; padding: 8px 4px !important; }
+.qty-input-add { text-align: center; }
+.description-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 12px;
+  background: #fafbfc;
+  color: var(--text);
+}
+.description-input:focus { border-color: var(--primary); background: white; }
+.description-input::placeholder { color: #9ca3af; font-style: italic; }
+
+.library-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.search-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+.search-input:focus { border-color: var(--primary); }
+.category-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.cat-tab {
+  padding: 6px 12px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.cat-tab.active { background: var(--primary); color: white; }
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.library-item {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.library-item:hover { background: white; border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(47,111,235,0.15); }
+.library-item.in-list { background: #dcfce7; border-color: var(--success); }
+.library-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-item .emoji { font-size: 18px; }
+.library-item .del-lib {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  transition: opacity 0.15s;
+}
+.library-item:hover .del-lib { opacity: 0.6; }
+.library-item .del-lib:hover { opacity: 1; }
+.add-library-btn {
+  padding: 10px 12px;
+  background: white;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 500;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.add-library-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* Items list (in shopping) */
+.progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.big-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0 12px;
+}
+.big-progress-bar .fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--success)); transition: width 0.3s; border-radius: 4px; }
+
+.items-list { display: flex; flex-direction: column; gap: 6px; }
+.list-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+.list-item:hover { background: white; border-color: var(--border); }
+.list-item.checked { opacity: 0.5; background: #f1f5f9; }
+.list-item.checked .item-main { text-decoration: line-through; }
+.check-btn {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 16px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.check-btn:hover { border-color: var(--success); }
+.check-btn.checked { background: var(--success); border-color: var(--success); }
+
+.item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.item-name { font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.item-name .item-emoji { font-size: 18px; }
+.item-name .item-text { overflow: hidden; text-overflow: ellipsis; }
+.item-description { font-size: 12px; color: var(--muted); font-style: italic; padding-left: 26px; }
+
+.qty-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+.qty-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 16px;
+  font-family: inherit;
+}
+.qty-btn:hover { background: #e2e8f0; color: var(--text); }
+.qty-input {
+  width: 42px;
+  text-align: center;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  background: transparent;
+  -moz-appearance: textfield;
+  font-family: inherit;
+}
+.qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qty-suffix { font-size: 11px; color: var(--muted); padding-right: 4px; }
+.unit-select-inline {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 2px 4px 4px;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  max-width: 100px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><polyline points='2,4 5,7 8,4' fill='none' stroke='%236b7280' stroke-width='1.5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 2px center;
+  padding-right: 14px;
+}
+.unit-select-inline:hover, .unit-select-inline:focus { color: var(--text); }
+
+.user-tag {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  white-space: nowrap;
+  background: #9ca3af;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.remove-btn:hover { background: #fee2e2; color: var(--danger); }
+
+/* Complete list action */
+.complete-list-action {
+  position: sticky;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+.complete-list-action .btn {
+  box-shadow: 0 8px 24px rgba(34,197,94,0.35);
+  padding: 14px 28px;
+  font-size: 16px;
+}
+
+/* Completed lists in home */
+.completed-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.completed-list-item:hover { background: #f1f5f9; }
+.completed-list-item .info { flex: 1; min-width: 0; }
+.completed-list-item .name { font-weight: 600; font-size: 14px; }
+.completed-list-item .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.completed-list-item .completion-note { font-size: 12px; color: #059669; font-style: italic; margin-top: 4px; }
+
+/* Modal */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15,23,42,0.55);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 460px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal h3 { font-size: 18px; margin-bottom: 8px; }
+.modal .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.modal label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; margin-top: 12px; font-weight: 500; }
+.modal input, .modal select, .modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  background: white;
+  color: var(--text);
+}
+.modal textarea { min-height: 80px; resize: vertical; }
+.modal input:focus, .modal select:focus, .modal textarea:focus { border-color: var(--primary); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  background: #1f2937;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  z-index: 200;
+  transition: transform 0.3s;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Mobile */
+@media (max-width: 640px) {
+  .manual-add {
+    grid-template-columns: 1fr 54px 60px 80px;
+  }
+  .manual-add .btn { grid-column: 1 / -1; }
+  .list-item { grid-template-columns: auto 1fr auto; grid-template-areas: "check main remove" "check qty user"; }
+  .list-item .check-btn { grid-area: check; }
+  .list-item .item-main { grid-area: main; }
+  .list-item .qty-control { grid-area: qty; justify-self: start; }
+  .list-item .user-tag { grid-area: user; justify-self: end; }
+  .list-item .remove-btn { grid-area: remove; }
+  .shopping-header { grid-template-columns: auto 1fr auto; }
+  .list-name-input { font-size: 17px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="card">
+    <div class="top-row">
+      <h1>🛒 Λίστα Ψωνιών <span class="live-label"><span class="live-dot"></span>live</span></h1>
+      <div class="user-picker" id="userPicker"></div>
+    </div>
+  </header>
+
+  <!-- ================ HOME VIEW ================ -->
+  <div id="homeView">
+    <section class="card">
+      <div class="section-header">
+        <h2>📋 Ενεργές λίστες <span class="count" id="activeCount">0</span></h2>
+      </div>
+      <div class="lists-grid" id="activeListsGrid">
+        <!-- populated by renderActiveLists() -->
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header collapsible collapsed" onclick="toggleSection('completed')">
+        <h2>✅ Ολοκληρωμένα ψώνια <span class="count" id="completedCount">0</span></h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body collapsed" id="completedBody">
+        <div id="completedListsWrap"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header collapsible collapsed" onclick="toggleSection('library')">
+        <h2>📚 Βιβλιοθήκη ειδών <span class="count" id="libCount">0</span></h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body collapsed" id="libraryHomeBody">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Διαχειρίσου τα έτοιμα είδη — προστίθενται αυτόματα σε νέα προσθήκη μέσα σε κάθε λίστα.</div>
+        <div class="library-controls">
+          <input type="text" class="search-input" id="libHomeSearch" placeholder="🔎 Αναζήτηση..." oninput="renderLibraryHome()">
+        </div>
+        <div class="category-tabs" id="libHomeCategoryTabs"></div>
+        <div class="library-grid" id="libHomeGrid"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-header collapsible collapsed" onclick="toggleSection('backup')">
+        <h2>💾 Δεδομένα <span id="autoSaveIndicator" style="font-size:11px;color:var(--success);font-weight:600;margin-left:6px">● Αυτόματη αποθήκευση</span></h2>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body collapsed" id="backupBody">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+          Οι λίστες αποθηκεύονται <b>αυτόματα</b> στη συσκευή σου με κάθε αλλαγή. Κρατάμε επίσης τα <b>7 τελευταία snapshots</b> για ασφάλεια — αν κάτι πάει στραβά, κάνε επαναφορά από παρακάτω.
+        </div>
+
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">🕓 Πρόσφατα snapshots</div>
+        <div id="snapshotsList" style="margin-bottom:16px"></div>
+
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Για μεταφορά σε άλλο κινητό/υπολογιστή:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-small" onclick="exportBackup()">⬇ Εξαγωγή σε αρχείο</button>
+            <button class="btn btn-secondary btn-small" onclick="document.getElementById('importFile').click()">⬆ Επαναφορά από αρχείο</button>
+            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(event)">
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================ SHOPPING VIEW ================ -->
+  <div id="shoppingView" style="display:none">
+    <div class="card shopping-header">
+      <button class="back-btn" onclick="goHome()" title="Επιστροφή">←</button>
+      <div class="list-title-wrap">
+        <input type="text" id="listNameInput" class="list-name-input" placeholder="Όνομα λίστας" onchange="saveListName()">
+        <div class="list-meta-row">
+          <span class="date-badge-inline" id="listDateBadge"></span>
+          <input type="text" id="listNoteInput" class="note-input" placeholder="Σημείωση..." onchange="saveListNote()">
+        </div>
+      </div>
+      <button class="menu-btn" onclick="openListMenu()" title="Επιλογές">⋮</button>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px">➕ Προσθήκη είδους</h2>
+      <div class="manual-add">
+        <input type="text" id="manualName" placeholder="Είδος (π.χ. γάλα)" oninput="autoGuessEmoji()" onkeydown="if(event.key==='Enter') addManual()">
+        <input type="text" id="manualEmoji" class="emoji-input" placeholder="🎯" maxlength="4">
+        <input type="number" id="manualQty" class="qty-input-add" placeholder="ποσ." value="1" min="0" step="any">
+        <select id="manualUnit" class="unit-select-inline" onchange="handleUnitChangeManual(this.value, this)"></select>
+        <button class="btn" onclick="addManual()">+ Προσθήκη</button>
+      </div>
+      <input type="text" id="manualDescription" class="description-input" placeholder="Περιγραφή (π.χ. μεγάλο μπουκάλι, χωρίς ζάχαρη) — προαιρετικό">
+
+      <div class="library-controls">
+        <input type="text" class="search-input" id="searchInput" placeholder="🔎 Αναζήτηση στη βιβλιοθήκη..." oninput="renderLibraryShopping()">
+      </div>
+      <div class="category-tabs" id="categoryTabs"></div>
+      <div class="library-grid" id="libraryGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="progress-row">
+        <span id="progressLabel">0/0 αγορασμένα</span>
+        <div class="big-progress-bar"><div class="fill" id="bigProgressFill" style="width:0%"></div></div>
+        <span id="progressPct" style="font-weight:600;color:var(--text)">0%</span>
+      </div>
+      <div class="items-list" id="itemsList"></div>
+    </div>
+
+    <div class="complete-list-action">
+      <button class="btn btn-success btn-large" onclick="openCompleteModal()">✓ Έγιναν τα ψώνια</button>
+    </div>
+  </div>
+
+  <!-- ================ MODALS ================ -->
+
+  <!-- Manage users modal -->
+  <div class="modal-backdrop" id="manageUsersModal">
+    <div class="modal">
+      <h3>👥 Άτομα που κάνουν εισαγωγή</h3>
+      <p class="modal-sub">Πρόσθεσε, μετονόμασε ή αφαίρεσε άτομα. Παλιά είδη κρατούν το αρχικό όνομα.</p>
+      <div id="usersList" style="margin-top:12px;margin-bottom:16px"></div>
+      <label>Νέο άτομο</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="newUserName" placeholder="π.χ. Μάρω, Γιώργος..." style="flex:1" onkeydown="if(event.key==='Enter') addUser()">
+        <button class="btn" onclick="addUser()">+ Προσθήκη</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Κλείσιμο</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New list modal -->
+  <div class="modal-backdrop" id="newListModal">
+    <div class="modal">
+      <h3>Νέα λίστα ψωνιών</h3>
+      <label>Όνομα λίστας</label>
+      <input type="text" id="newListName" placeholder="π.χ. Σαββατοκύριακο, Πάρτι, Εβδομαδιαία...">
+      <label>Σημείωση (προαιρετικό)</label>
+      <input type="text" id="newListNote" placeholder="π.χ. να μη ξεχάσω τη ζάχαρη">
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Άκυρο</button>
+        <button class="btn" onclick="confirmCreateList()">Δημιουργία</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add-to-library modal -->
+  <div class="modal-backdrop" id="addLibModal">
+    <div class="modal">
+      <h3>Προσθήκη νέου είδους στη βιβλιοθήκη</h3>
+      <label>Όνομα είδους</label>
+      <input type="text" id="newLibName" placeholder="π.χ. Μπανάνες" oninput="autoGuessLibEmoji()">
+      <label>Emoji (auto)</label>
+      <input type="text" id="newLibEmoji" placeholder="🍌" maxlength="4" style="text-align:center;font-size:20px">
+      <label>Προεπιλεγμένη μονάδα</label>
+      <select id="newLibUnit" onchange="handleUnitChangeLib(this.value, this)"></select>
+      <label>Περιγραφή (προαιρετικό)</label>
+      <input type="text" id="newLibDescription" placeholder="π.χ. μεγάλο μέγεθος, μπίο κτλ">
+      <label>Κατηγορία</label>
+      <select id="newLibCategory" onchange="if(this.value==='__new__'){document.getElementById('newCatWrap').style.display='block';document.getElementById('newCatName').focus()}else{document.getElementById('newCatWrap').style.display='none'}"></select>
+      <div id="newCatWrap" style="display:none">
+        <label>Νέα κατηγορία</label>
+        <input type="text" id="newCatName" placeholder="π.χ. Παιδικά">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Άκυρο</button>
+        <button class="btn" onclick="saveNewLibraryItem()">Αποθήκευση</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Complete list modal -->
+  <div class="modal-backdrop" id="completeModal">
+    <div class="modal">
+      <h3>🎉 Τα ψώνια έγιναν!</h3>
+      <div class="modal-sub" id="completeSubtitle"></div>
+      <label>Σημείωση (προαιρετικό)</label>
+      <textarea id="completionNoteInput" placeholder="π.χ. Ξέμειναν οι φράουλες, θα πάρω αύριο..."></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Άκυρο</button>
+        <button class="btn btn-success" onclick="confirmCompleteList()">✓ Ολοκλήρωση ψωνίων</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- List menu modal -->
+  <div class="modal-backdrop" id="listMenuModal">
+    <div class="modal" style="max-width:340px">
+      <h3>Επιλογές λίστας</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+        <button class="btn btn-secondary" onclick="duplicateCurrentList()">📋 Αντιγραφή σε νέα λίστα</button>
+        <button class="btn btn-accent" onclick="closeModalAll(); openShareModal()">📲 Στείλε τη λίστα</button>
+        <button class="btn btn-secondary" onclick="shareAsText()">📝 Ως κείμενο</button>
+        <button class="btn btn-danger" onclick="deleteCurrentList()">🗑 Διαγραφή λίστας</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Κλείσιμο</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share list modal -->
+  <div class="modal-backdrop" id="shareModal">
+    <div class="modal" style="max-width:460px">
+      <h3>📲 Στείλε τη λίστα</h3>
+      <p class="modal-sub">Στείλε το link σε WhatsApp/Viber/SMS. Ο παραλήπτης θα δει τη λίστα και θα τσεκάρει τι αγόρασε.</p>
+      <div id="qrCode" style="text-align:center;margin:16px 0;padding:16px;background:white;border-radius:12px;border:1px solid var(--border)"></div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">Σκάναρε το QR από το άλλο κινητό</div>
+      <input type="text" id="shareUrl" readonly style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:#f8fafc;font-family:monospace" onclick="this.select()">
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Κλείσιμο</button>
+        <button class="btn btn-secondary" onclick="copyShareUrl()">📋 Copy</button>
+        <button class="btn" onclick="nativeShare()">📤 Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receive shared list modal -->
+  <div class="modal-backdrop" id="receiveModal">
+    <div class="modal">
+      <h3>📥 Έλαβες λίστα ψωνιών</h3>
+      <div id="receiveInfo" style="font-size:15px;margin:12px 0;padding:12px;background:#f0f9ff;border-radius:8px;border-left:3px solid var(--primary)"></div>
+      <div id="receivePreview" style="max-height:240px;overflow:auto;background:#f8fafc;padding:12px;border-radius:8px;font-size:13px;line-height:1.8"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="dismissReceive()">Παράβλεψη</button>
+        <button class="btn" onclick="acceptReceive()">✓ Άνοιξε τη λίστα</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completed list detail modal -->
+  <div class="modal-backdrop" id="viewCompletedModal">
+    <div class="modal" style="max-width:520px">
+      <h3 id="vcTitle">Λίστα</h3>
+      <div id="vcMeta" style="font-size:13px;color:var(--muted);margin-bottom:8px"></div>
+      <div id="vcCompletionNote" style="padding:10px;background:#dcfce7;border-radius:8px;font-size:14px;color:#166534;margin-bottom:12px;display:none"></div>
+      <div id="vcItems" style="max-height:300px;overflow:auto;font-size:14px;line-height:1.8"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModalAll()">Κλείσιμο</button>
+        <button class="btn btn-danger btn-small" onclick="deleteCompletedListFromModal()">🗑 Διαγραφή</button>
+        <button class="btn btn-secondary btn-small" onclick="duplicateCompletedListFromModal()">📋 Αντιγραφή</button>
+        <button class="btn btn-small" onclick="reopenCompletedListFromModal()">↩ Επαναφορά</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ================== CONSTANTS ==================
+const STORAGE_KEY = 'shopping_list_app_v3';
+const MONTHS_EL = ['Ιαν','Φεβ','Μαρ','Απρ','Μαϊ','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+const BASE_CATEGORIES = ['Φρούτα','Λαχανικά','Γαλακτοκομικά','Κρέας/Ψάρι','Ψωμί/Ζυμαρικά','Ποτά','Καθαριστικά','Άλλα'];
+
+// Smart emoji guesser — Greek stems + English fallbacks
+const EMOJI_MAP = [
+  // Φρούτα
+  {k:['μπαναν','banana'], e:'🍌'},
+  {k:['μηλ','apple'], e:'🍎'},
+  {k:['πορτοκαλ','orange'], e:'🍊'},
+  {k:['λεμον','lemon'], e:'🍋'},
+  {k:['φραουλ','strawberr'], e:'🍓'},
+  {k:['σταφυλ','grape'], e:'🍇'},
+  {k:['ροδακιν','peach'], e:'🍑'},
+  {k:['αχλαδ','pear'], e:'🍐'},
+  {k:['καρπουζ','watermelon'], e:'🍉'},
+  {k:['πεπον','melon'], e:'🍈'},
+  {k:['κερασ','cherr'], e:'🍒'},
+  {k:['αναν','pineapple'], e:'🍍'},
+  {k:['μανγκο','mango'], e:'🥭'},
+  {k:['ακτινιδ','kiwi'], e:'🥝'},
+  {k:['ροδι'], e:'🍎'},
+  {k:['βερικοκ','apricot'], e:'🍑'},
+  // Λαχανικά
+  {k:['ντοματ','tomato'], e:'🍅'},
+  {k:['αγγουρ','cucumber'], e:'🥒'},
+  {k:['πατατ','potato'], e:'🥔'},
+  {k:['κρεμμυδ','onion'], e:'🧅'},
+  {k:['σκορδ','garlic'], e:'🧄'},
+  {k:['μαρουλ','σαλατ','lettuce','salad'], e:'🥬'},
+  {k:['καροτ','carrot'], e:'🥕'},
+  {k:['πιπερ','pepper'], e:'🫑'},
+  {k:['μπροκολ','broccoli'], e:'🥦'},
+  {k:['μελιτζαν','eggplant'], e:'🍆'},
+  {k:['καλαμποκ','corn'], e:'🌽'},
+  {k:['μανιταρ','mushroom'], e:'🍄'},
+  {k:['σπανακ','spinach'], e:'🥬'},
+  {k:['κολοκυθ'], e:'🎃'},
+  {k:['φασολ','bean'], e:'🫘'},
+  {k:['φακ','lentil'], e:'🫘'},
+  // Γαλακτοκομικά
+  {k:['γαλα','milk'], e:'🥛'},
+  {k:['γιαουρτ','yogurt'], e:'🥛'},
+  {k:['τυρ','φετα','cheese'], e:'🧀'},
+  {k:['βουτυρ','butter'], e:'🧈'},
+  {k:['αυγ','egg'], e:'🥚'},
+  {k:['κρεμ γαλα'], e:'🥛'},
+  // Κρέας/Ψάρι
+  {k:['κοτοπουλ','chicken'], e:'🍗'},
+  {k:['κιμα','μοσχαρ','χοιριν','κρεας','beef','pork','meat'], e:'🥩'},
+  {k:['ψαρι','σαρδελ','τσιπουρ','fish','salmon'], e:'🐟'},
+  {k:['λουκανικ','sausage'], e:'🌭'},
+  {k:['ζαμπον','ham'], e:'🥓'},
+  {k:['μπεικον','bacon'], e:'🥓'},
+  {k:['γαριδ','shrimp'], e:'🦐'},
+  {k:['καλαμαρ','χταποδ','squid','octopus'], e:'🦑'},
+  {k:['μυδι','shellfish'], e:'🦪'},
+  {k:['γαλοπουλ','turkey'], e:'🦃'},
+  // Ψωμί/Ζυμαρικά
+  {k:['ψωμ','bread'], e:'🍞'},
+  {k:['μακαρον','ζυμαρικ','pasta','spaghetti'], e:'🍝'},
+  {k:['ρυζι','rice'], e:'🍚'},
+  {k:['δημητριακ','κορν φλεικ','cereal'], e:'🥣'},
+  {k:['κρουασαν','croissant'], e:'🥐'},
+  {k:['μπαγκετ','baguette'], e:'🥖'},
+  {k:['πιτα','pita'], e:'🥙'},
+  {k:['τορτιγι','tortilla'], e:'🌮'},
+  {k:['αλευρ','flour'], e:'🌾'},
+  // Ποτά
+  {k:['νερο','water'], e:'💧'},
+  {k:['χυμ','juice'], e:'🧃'},
+  {k:['καφε','coffee'], e:'☕'},
+  {k:['τσαι','tea'], e:'🍵'},
+  {k:['μπυρ','beer'], e:'🍺'},
+  {k:['κρασι','wine'], e:'🍷'},
+  {k:['αναψυκτικ','coca','πεψι','soda','pepsi'], e:'🥤'},
+  {k:['σαμπανι','champagne'], e:'🍾'},
+  {k:['ουισκ','βοτκα','ρακ','τσιπουρ','τζιν','whiskey','vodka'], e:'🥃'},
+  {k:['κοκτε','cocktail'], e:'🍹'},
+  // Καθαριστικά
+  {k:['απορρυπαντικ ρουχ','σκονη πλυντηρι','laundry'], e:'🧺'},
+  {k:['απορρυπαντικ πιατ','dish soap'], e:'🧽'},
+  {k:['απορρυπαντικ','detergent'], e:'🧴'},
+  {k:['χαρτι υγει','toilet paper'], e:'🧻'},
+  {k:['χαρτι κουζιν','χαρτοπετσετ','paper towel'], e:'🧻'},
+  {k:['σαμπουαν','shampoo'], e:'🧴'},
+  {k:['σαπουν','soap'], e:'🧼'},
+  {k:['μαλακτικ','softener'], e:'🧴'},
+  {k:['χλωριν','bleach'], e:'🧴'},
+  {k:['σφουγγαρ','sponge'], e:'🧽'},
+  {k:['σκουπ','broom'], e:'🧹'},
+  {k:['σακουλ σκουπιδ','trash bag'], e:'🗑️'},
+  {k:['μωρομαντηλ','wipe'], e:'🧻'},
+  // Ζαχαρώδη / γλυκά
+  {k:['ζαχαρ','sugar'], e:'🍬'},
+  {k:['αλατ','salt'], e:'🧂'},
+  {k:['λαδι','ελαιολαδ','oil','olive oil'], e:'🫒'},
+  {k:['ξυδι','vinegar'], e:'🍶'},
+  {k:['μελι','honey'], e:'🍯'},
+  {k:['μαρμελαδ','jam'], e:'🍓'},
+  {k:['σοκολατ','chocolate'], e:'🍫'},
+  {k:['μπισκοτ','cookie'], e:'🍪'},
+  {k:['κεικ','τουρτ','cake'], e:'🍰'},
+  {k:['γλυκο','sweet'], e:'🍭'},
+  {k:['παγωτ','ice cream'], e:'🍦'},
+  {k:['πιτσα','pizza'], e:'🍕'},
+  {k:['χαμπουργκερ','burger'], e:'🍔'},
+  {k:['πατατακ','chip'], e:'🥔'},
+  {k:['ξηρ καρπ','nuts'], e:'🥜'},
+  {k:['φυστικ','peanut','pistachio'], e:'🥜'},
+  {k:['μπαχαρικ','spice'], e:'🌶️'},
+  // Προσωπικής φροντίδας
+  {k:['οδοντοπαστ','οδοντοκρεμ','toothpaste'], e:'🪥'},
+  {k:['οδοντοβουρτσ','toothbrush'], e:'🪥'},
+  {k:['κρεμα σωματ','moisturizer','lotion'], e:'🧴'},
+  {k:['αρωμ','perfume'], e:'💐'},
+  {k:['αντιηλιακ','sunscreen'], e:'🧴'},
+  {k:['ξυραφ','razor'], e:'🪒'},
+  {k:['αποσμητικ','deodorant'], e:'🧴'},
+  {k:['ταμπον','pad','tampon'], e:'🌸'},
+  // Παιδικά / βρεφικά
+  {k:['παν','diaper'], e:'👶'},
+  {k:['βρεφικ','baby'], e:'👶'},
+  {k:['πουρε','baby food'], e:'🍼'},
+  {k:['μπιμπερο','bottle'], e:'🍼'},
+  // Κατοικίδια
+  {k:['κροκετ γατ','cat food'], e:'🐈'},
+  {k:['γατοτροφ'], e:'🐈'},
+  {k:['κροκετ σκυλ','dog food'], e:'🐕'},
+  {k:['σκυλοτροφ'], e:'🐕'},
+  {k:['αμμο γατ','cat litter'], e:'🐈'},
+  // Άλλα
+  {k:['λαμπ','light bulb'], e:'💡'},
+  {k:['μπαταρι','battery'], e:'🔋'},
+  {k:['κερι','candle'], e:'🕯️'},
+  {k:['λουλουδ','flower'], e:'🌸'},
+  {k:['εφημεριδ','περιοδικ','magazine'], e:'📰'},
+  {k:['φαρμακ','medicine'], e:'💊'},
+];
+
+function guessEmoji(text, description = '') {
+  const t = (text + ' ' + description).toLowerCase().trim();
+  if (!t) return '';
+  for (const {k, e} of EMOJI_MAP) {
+    for (const key of k) {
+      if (t.includes(key.toLowerCase())) return e;
+    }
+  }
+  return '';
+}
+
+// User palette — used for auto-picking colors when adding new users
+const USER_COLORS = ['#2f6feb','#d946ef','#f59e0b','#22c55e','#ef4444','#0891b2','#8b5cf6','#ec4899','#14b8a6','#f97316'];
+
+// Units of measurement — common defaults + user-added customs
+const COMMON_UNITS = ['τεμ.','κιλά','γρ.','λίτρα','ml','πακέτα','μπουκάλια','κουτιά','ρολά','φέτες'];
+const DEFAULT_USERS = [
+  { id: 'u_dim', name: 'Δημήτρης', color: '#2f6feb' },
+  { id: 'u_inn', name: 'Ίννα', color: '#d946ef' },
+];
+
+const DEFAULT_LIBRARY = [
+  {name:'Γάλα', emoji:'🥛', category:'Γαλακτοκομικά', description:''},
+  {name:'Ψωμί', emoji:'🍞', category:'Ψωμί/Ζυμαρικά', description:''},
+  {name:'Αυγά', emoji:'🥚', category:'Γαλακτοκομικά', description:''},
+  {name:'Τυρί φέτα', emoji:'🧀', category:'Γαλακτοκομικά', description:''},
+  {name:'Ντομάτες', emoji:'🍅', category:'Λαχανικά', description:''},
+  {name:'Πατάτες', emoji:'🥔', category:'Λαχανικά', description:''},
+  {name:'Κρεμμύδια', emoji:'🧅', category:'Λαχανικά', description:''},
+  {name:'Μπανάνες', emoji:'🍌', category:'Φρούτα', description:''},
+  {name:'Μήλα', emoji:'🍎', category:'Φρούτα', description:''},
+  {name:'Κοτόπουλο', emoji:'🍗', category:'Κρέας/Ψάρι', description:''},
+  {name:'Νερό', emoji:'💧', category:'Ποτά', description:''},
+  {name:'Καφές', emoji:'☕', category:'Ποτά', description:''},
+  {name:'Χαρτί υγείας', emoji:'🧻', category:'Καθαριστικά', description:''},
+  {name:'Απορρυπαντικό πιάτων', emoji:'🧽', category:'Καθαριστικά', description:''},
+  {name:'Ζάχαρη', emoji:'🍬', category:'Άλλα', description:''},
+  {name:'Αλάτι', emoji:'🧂', category:'Άλλα', description:''},
+  {name:'Λάδι', emoji:'🫒', category:'Άλλα', description:''},
+];
+
+// ================== STATE ==================
+let state = {
+  currentUser: 'Δημήτρης',
+  users: DEFAULT_USERS.slice(),
+  customUnits: [],           // extra units the user has typed in
+  lists: [],                 // {id, name, note, createdBy, createdAt, items:[...], status, completedBy, completedAt, completionNote}
+  library: DEFAULT_LIBRARY.slice(),
+  activeListId: null,
+  view: 'home',              // 'home' | 'shopping'
+  activeCategory: 'Όλα',
+  activeCategoryHome: 'Όλα',
+  lastBackup: null,
+  sections: {                // collapsible state
+    completed: false,
+    library: false,
+    backup: false,
+  }
+};
+
+let _completedViewId = null;
+
+// ================== PERSISTENCE ==================
+const SNAPSHOT_PREFIX = 'shopping_list_app_v3_snap_';
+const MAX_SNAPSHOTS = 7;
+const SNAPSHOT_INTERVAL_MS = 6 * 60 * 60 * 1000; // take at most one snapshot per 6 hours
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    showAutoSaveFlash();
+    takeSnapshotIfNeeded();
+  } catch(e) { console.warn(e); }
+}
+
+let _autoSaveFlashTimer;
+function showAutoSaveFlash() {
+  const el = document.getElementById('autoSaveIndicator');
+  if (!el) return;
+  el.style.color = 'var(--primary)';
+  el.textContent = '● Αποθηκεύτηκε';
+  clearTimeout(_autoSaveFlashTimer);
+  _autoSaveFlashTimer = setTimeout(() => {
+    el.style.color = 'var(--success)';
+    el.textContent = '● Αυτόματη αποθήκευση';
+  }, 800);
+}
+
+function takeSnapshotIfNeeded() {
+  try {
+    const keys = getSnapshotKeys();
+    const now = Date.now();
+    const lastTs = keys.length ? Math.max(...keys.map(k => parseInt(k.substring(SNAPSHOT_PREFIX.length), 10))) : 0;
+    if (now - lastTs < SNAPSHOT_INTERVAL_MS) return;
+    localStorage.setItem(SNAPSHOT_PREFIX + now, localStorage.getItem(STORAGE_KEY));
+    // Rotate — keep only newest MAX_SNAPSHOTS
+    const all = getSnapshotKeys().sort();
+    while (all.length > MAX_SNAPSHOTS) {
+      localStorage.removeItem(all.shift());
+    }
+    if (state.view === 'home') renderSnapshots();
+  } catch(e) { console.warn('snapshot failed', e); }
+}
+function getSnapshotKeys() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(SNAPSHOT_PREFIX)) keys.push(k);
+  }
+  return keys;
+}
+function renderSnapshots() {
+  const wrap = document.getElementById('snapshotsList');
+  if (!wrap) return;
+  const snaps = getSnapshotKeys()
+    .map(k => ({ key: k, ts: parseInt(k.substring(SNAPSHOT_PREFIX.length), 10) }))
+    .sort((a,b) => b.ts - a.ts);
+  if (snaps.length === 0) {
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic">Θα δημιουργηθεί το πρώτο snapshot μέσα σε λίγες ώρες χρήσης.</div>';
+    return;
+  }
+  wrap.innerHTML = snaps.map(s => {
+    const d = new Date(s.ts);
+    const now = new Date();
+    const days = Math.floor((now - d) / 86400000);
+    const label = days === 0
+      ? `Σήμερα, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+      : days === 1
+        ? `Χθες, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+        : `${days} μέρες πριν`;
+    // Peek into snapshot for meta info
+    let meta = '';
+    try {
+      const snap = JSON.parse(localStorage.getItem(s.key));
+      const active = (snap.lists||[]).filter(l => l.status === 'active').length;
+      const completed = (snap.lists||[]).filter(l => l.status === 'completed').length;
+      meta = `${active} ενεργές · ${completed} ολοκληρωμένες`;
+    } catch(e) {}
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8fafc;border-radius:8px;margin-bottom:4px;gap:8px">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:13px;font-weight:600">${label}</div>
+          <div style="font-size:11px;color:var(--muted)">${meta}</div>
+        </div>
+        <button class="btn btn-secondary btn-small" onclick="restoreSnapshot('${s.key}')">↩ Επαναφορά</button>
+      </div>
+    `;
+  }).join('');
+}
+function restoreSnapshot(key) {
+  const data = localStorage.getItem(key);
+  if (!data) return;
+  if (!confirm('Θα αντικατασταθούν τα τρέχοντα δεδομένα με το snapshot. Συνέχεια;')) return;
+  localStorage.setItem(STORAGE_KEY, data);
+  loadState();
+  if (state.view === 'shopping' && currentList()) renderShopping();
+  else { goHome(); }
+  toast('Επαναφορά από snapshot ✓');
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state = { ...state, ...parsed };
+      if (!state.library || state.library.length === 0) state.library = DEFAULT_LIBRARY.slice();
+      if (!state.lists) state.lists = [];
+      if (!state.sections) state.sections = {completed:false, library:false, backup:false};
+      if (!state.users || !Array.isArray(state.users) || state.users.length === 0) {
+        state.users = DEFAULT_USERS.slice();
+      }
+      if (!Array.isArray(state.customUnits)) state.customUnits = [];
+      // Ensure currentUser exists in users list
+      if (state.currentUser && !state.users.find(u => u.name === state.currentUser)) {
+        state.users.push({ id: 'u_' + uid(), name: state.currentUser, color: pickNextColor() });
+      }
+    } else {
+      // Try migrating from v1/v2 storage
+      migrateOldState();
+    }
+  } catch(e) { console.warn(e); }
+  setUser(state.currentUser || 'Δημήτρης', false);
+}
+function migrateOldState() {
+  try {
+    const oldRaw = localStorage.getItem('shopping_list_app_v1');
+    if (!oldRaw) return;
+    const old = JSON.parse(oldRaw);
+    if (old.currentList && old.currentList.length) {
+      state.lists.push({
+        id: uid(),
+        name: old.note || 'Λίστα (παλιά)',
+        note: old.note || '',
+        createdBy: old.currentUser || 'Δημήτρης',
+        createdAt: new Date().toISOString(),
+        items: old.currentList.map(i => ({...i, id: uid(), description: '', addedBy: i.user, addedAt: null, checkedBy: null, checkedAt: null})),
+        status: 'active'
+      });
+    }
+    if (old.history && old.history.length) {
+      old.history.forEach(h => {
+        const [d,m,y] = (h.date||'').split('/');
+        const iso = (d&&m&&y) ? new Date(+y,+m-1,+d).toISOString() : new Date().toISOString();
+        state.lists.push({
+          id: h.id || uid(),
+          name: h.note || `Λίστα ${h.date}`,
+          note: h.note || '',
+          createdBy: (h.users&&h.users[0]) || 'Δημήτρης',
+          createdAt: iso,
+          items: (h.items||[]).map(i => ({...i, id: uid(), description: '', addedBy: i.user, checked: true})),
+          status: 'completed',
+          completedBy: (h.users&&h.users[0]) || 'Δημήτρης',
+          completedAt: iso,
+          completionNote: ''
+        });
+      });
+    }
+    if (old.library) state.library = old.library;
+    if (old.lastBackup) state.lastBackup = old.lastBackup;
+    if (old.currentUser) state.currentUser = old.currentUser;
+    saveState();
+    toast('Μεταφέρθηκαν τα παλιά δεδομένα ✓');
+  } catch(e) { console.warn('migrate failed', e); }
+}
+
+// ================== USERS ==================
+function pickNextColor() {
+  const used = new Set((state.users||[]).map(u => u.color));
+  const free = USER_COLORS.find(c => !used.has(c));
+  return free || USER_COLORS[((state.users||[]).length) % USER_COLORS.length];
+}
+function getUserColor(name) {
+  const u = (state.users||[]).find(u => u.name === name);
+  return u ? u.color : '#9ca3af';
+}
+function renderUserPicker() {
+  const picker = document.getElementById('userPicker');
+  if (!picker) return;
+  const btns = state.users.map(u => {
+    const active = state.currentUser === u.name;
+    const style = active ? `background:${u.color};box-shadow:0 2px 8px ${u.color}55;` : '';
+    return `<button class="user-btn ${active?'active':''}" style="${style}" onclick="setUser('${escapeAttr(u.name)}')">👤 ${escapeHtml(u.name)}</button>`;
+  }).join('');
+  const manageBtn = `<button class="user-btn manage-btn" onclick="openManageUsers()" title="Διαχείριση ατόμων">⚙</button>`;
+  picker.innerHTML = btns + manageBtn;
+}
+function setUser(name, save=true) {
+  state.currentUser = name;
+  renderUserPicker();
+  if (save) saveState();
+}
+function openManageUsers() {
+  const inp = document.getElementById('newUserName');
+  if (inp) inp.value = '';
+  renderUsersList();
+  document.getElementById('manageUsersModal').classList.add('open');
+}
+function renderUsersList() {
+  const wrap = document.getElementById('usersList');
+  if (!wrap) return;
+  wrap.innerHTML = state.users.map(u => {
+    const canDelete = state.users.length > 1;
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px">
+        <div style="width:28px;height:28px;border-radius:50%;background:${u.color};flex-shrink:0;border:2px solid white;box-shadow:0 0 0 1px var(--border);cursor:pointer" onclick="cycleUserColor('${u.id}')" title="Άλλαξε χρώμα"></div>
+        <input type="text" value="${escapeHtml(u.name)}" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:14px" onchange="renameUser('${u.id}', this.value)">
+        ${canDelete ? `<button class="btn btn-danger btn-small" onclick="removeUser('${u.id}')" title="Διαγραφή">✕</button>` : '<span style="font-size:10px;color:var(--muted);padding:0 4px">απαιτείται</span>'}
+      </div>
+    `;
+  }).join('');
+}
+function cycleUserColor(id) {
+  const u = state.users.find(u => u.id === id);
+  if (!u) return;
+  const idx = USER_COLORS.indexOf(u.color);
+  u.color = USER_COLORS[(idx + 1) % USER_COLORS.length];
+  saveState();
+  renderUsersList();
+  renderUserPicker();
+  if (state.view === 'shopping') renderList();
+}
+function addUser() {
+  const inp = document.getElementById('newUserName');
+  const name = inp.value.trim();
+  if (!name) return;
+  if (state.users.find(u => u.name.toLowerCase() === name.toLowerCase())) {
+    alert('Υπάρχει ήδη άτομο με αυτό το όνομα.');
+    return;
+  }
+  state.users.push({ id: 'u_' + uid(), name, color: pickNextColor() });
+  inp.value = '';
+  saveState();
+  renderUsersList();
+  renderUserPicker();
+  toast(`Προστέθηκε: ${name}`);
+}
+function renameUser(id, newName) {
+  const u = state.users.find(u => u.id === id);
+  if (!u) return;
+  newName = (newName||'').trim();
+  if (!newName || newName === u.name) { renderUsersList(); return; }
+  if (state.users.find(x => x.name.toLowerCase() === newName.toLowerCase() && x.id !== id)) {
+    alert('Υπάρχει ήδη άτομο με αυτό το όνομα.');
+    renderUsersList();
+    return;
+  }
+  const oldName = u.name;
+  u.name = newName;
+  if (state.currentUser === oldName) state.currentUser = newName;
+  // Propagate to all items/lists so tags stay consistent
+  state.lists.forEach(l => {
+    if (l.createdBy === oldName) l.createdBy = newName;
+    if (l.completedBy === oldName) l.completedBy = newName;
+    l.items.forEach(i => {
+      if (i.addedBy === oldName) i.addedBy = newName;
+      if (i.checkedBy === oldName) i.checkedBy = newName;
+    });
+  });
+  saveState();
+  renderUsersList();
+  renderUserPicker();
+  if (state.view === 'home') renderHome();
+  else renderShopping();
+  toast(`Μετονομάστηκε: ${newName}`);
+}
+function removeUser(id) {
+  if (state.users.length <= 1) { alert('Πρέπει να υπάρχει τουλάχιστον 1 άτομο.'); return; }
+  const u = state.users.find(u => u.id === id);
+  if (!u) return;
+  if (!confirm(`Διαγραφή "${u.name}"; Τα παλιά είδη θα κρατήσουν το όνομα.`)) return;
+  state.users = state.users.filter(x => x.id !== id);
+  if (state.currentUser === u.name) state.currentUser = state.users[0].name;
+  saveState();
+  renderUsersList();
+  renderUserPicker();
+  if (state.view === 'home') renderHome();
+  else renderShopping();
+  toast(`Διαγράφηκε: ${u.name}`);
+}
+
+// ================== UNITS ==================
+function getAllUnits() {
+  return [...COMMON_UNITS, ...state.customUnits];
+}
+function buildUnitOptions(selected) {
+  const units = getAllUnits();
+  if (selected && !units.includes(selected)) units.push(selected);
+  return units.map(u => `<option ${u===selected?'selected':''}>${escapeHtml(u)}</option>`).join('')
+       + '<option value="__custom__">+ Άλλο…</option>';
+}
+function handleUnitChangeItem(itemId, val, selectEl) {
+  if (val === '__custom__') {
+    const custom = (prompt('Νέα μονάδα (π.χ. δεσμίδες, φακελάκια, γραμμ.):') || '').trim();
+    const list = currentList();
+    const item = list ? list.items.find(i => i.id === itemId) : null;
+    if (!custom) { if (item && selectEl) selectEl.value = item.unit || 'τεμ.'; return; }
+    if (!COMMON_UNITS.includes(custom) && !state.customUnits.includes(custom)) {
+      state.customUnits.push(custom);
+    }
+    setUnit(itemId, custom);
+  } else {
+    setUnit(itemId, val);
+  }
+}
+function setUnit(itemId, unit) {
+  const list = currentList(); if (!list) return;
+  const item = list.items.find(i => i.id === itemId);
+  if (!item) return;
+  item.unit = unit;
+  saveState();
+  renderList();
+}
+function handleUnitChangeManual(val, selectEl) {
+  if (val === '__custom__') {
+    const custom = (prompt('Νέα μονάδα (π.χ. δεσμίδες, φακελάκια, γραμμ.):') || '').trim();
+    if (!custom) { selectEl.value = 'τεμ.'; return; }
+    if (!COMMON_UNITS.includes(custom) && !state.customUnits.includes(custom)) {
+      state.customUnits.push(custom);
+      saveState();
+    }
+    // Rebuild options so custom appears + selected
+    selectEl.innerHTML = buildUnitOptions(custom);
+  }
+}
+function handleUnitChangeLib(val, selectEl) {
+  if (val === '__custom__') {
+    const custom = (prompt('Νέα μονάδα:') || '').trim();
+    if (!custom) { selectEl.value = 'τεμ.'; return; }
+    if (!COMMON_UNITS.includes(custom) && !state.customUnits.includes(custom)) {
+      state.customUnits.push(custom);
+      saveState();
+    }
+    selectEl.innerHTML = buildUnitOptions(custom);
+  }
+}
+
+// ================== VIEW MGMT ==================
+function goHome() {
+  state.view = 'home';
+  state.activeListId = null;
+  document.getElementById('homeView').style.display = '';
+  document.getElementById('shoppingView').style.display = 'none';
+  saveState();
+  renderHome();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function openList(id) {
+  const list = state.lists.find(l => l.id === id);
+  if (!list) return;
+  state.activeListId = id;
+  state.view = 'shopping';
+  document.getElementById('homeView').style.display = 'none';
+  document.getElementById('shoppingView').style.display = '';
+  saveState();
+  renderShopping();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function currentList() {
+  return state.lists.find(l => l.id === state.activeListId) || null;
+}
+
+// ================== HOME RENDER ==================
+function renderHome() {
+  renderActiveLists();
+  renderCompletedLists();
+  renderLibraryHome();
+  renderSnapshots();
+}
+
+function renderActiveLists() {
+  const grid = document.getElementById('activeListsGrid');
+  const active = state.lists.filter(l => l.status === 'active');
+  document.getElementById('activeCount').textContent = active.length;
+  let html = `<button class="new-list-card" onclick="openNewListModal()">
+    <span class="plus">+</span>
+    <span>Νέα λίστα</span>
+  </button>`;
+  html += active.map(l => renderListCard(l)).join('');
+  grid.innerHTML = html;
+}
+
+function renderListCard(list) {
+  const total = list.items.length;
+  const checked = list.items.filter(i => i.checked).length;
+  const pct = total ? Math.round(checked/total*100) : 0;
+  const d = new Date(list.createdAt);
+  const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  return `
+    <div class="list-card" onclick="openList('${list.id}')">
+      <div class="list-card-header">
+        <div class="list-name">${escapeHtml(list.name)}</div>
+        <span class="status-badge active">Ενεργή</span>
+      </div>
+      <div class="list-meta">
+        <span>📅 ${dateStr}</span>
+        <span>·</span>
+        <span>👤 ${escapeHtml(list.createdBy)}</span>
+        <span>·</span>
+        <span>${total} είδη</span>
+      </div>
+      ${list.note ? `<div class="list-note">"${escapeHtml(list.note)}"</div>` : ''}
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill ${pct===100?'done':''}" style="width:${pct}%"></div></div>
+        <div class="progress-text"><span>${checked}/${total} αγορασμένα</span><span>${pct}%</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCompletedLists() {
+  const wrap = document.getElementById('completedListsWrap');
+  const completed = state.lists.filter(l => l.status === 'completed')
+    .sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
+  document.getElementById('completedCount').textContent = completed.length;
+  if (completed.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div style="font-size:13px">Δεν υπάρχουν ολοκληρωμένες λίστες ακόμη.</div></div>`;
+    return;
+  }
+  wrap.innerHTML = completed.map(l => {
+    const d = new Date(l.completedAt || l.createdAt);
+    const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    const total = l.items.length;
+    const checked = l.items.filter(i => i.checked).length;
+    return `
+      <div class="completed-list-item" onclick="viewCompletedList('${l.id}')">
+        <div class="info">
+          <div class="name">${escapeHtml(l.name)}</div>
+          <div class="meta">📅 ${dateStr} · ${checked}/${total} αγορασμένα · ${escapeHtml(l.completedBy||l.createdBy)}</div>
+          ${l.completionNote ? `<div class="completion-note">💬 ${escapeHtml(l.completionNote)}</div>` : ''}
+        </div>
+        <span class="status-badge completed">✓ Έγιναν</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// Library on home (management view)
+function renderLibraryHome() {
+  document.getElementById('libCount').textContent = state.library.length;
+  const grid = document.getElementById('libHomeGrid');
+  const search = (document.getElementById('libHomeSearch').value || '').toLowerCase().trim();
+  const cats = ['Όλα', ...getAllCategories()];
+  document.getElementById('libHomeCategoryTabs').innerHTML = cats.map(c =>
+    `<button class="cat-tab ${state.activeCategoryHome===c?'active':''}" onclick="setCategoryHome('${escapeAttr(c)}')">${escapeHtml(c)}</button>`
+  ).join('');
+  const filtered = state.library.filter(item => {
+    const catOk = state.activeCategoryHome === 'Όλα' || item.category === state.activeCategoryHome;
+    const sOk = !search || item.name.toLowerCase().includes(search) || (item.description||'').toLowerCase().includes(search);
+    return catOk && sOk;
+  });
+  let html = filtered.map(item => `
+    <div class="library-item" title="${escapeAttr(item.description||'')}" onclick="openAddLibraryPrefill('${escapeAttr(item.name)}')">
+      <span class="emoji">${item.emoji||'📦'}</span>
+      <span class="name">${escapeHtml(item.name)}</span>
+      <button class="del-lib" onclick="event.stopPropagation(); removeFromLibrary('${escapeAttr(item.name)}')" title="Διαγραφή">✕</button>
+    </div>
+  `).join('');
+  html += `<button class="add-library-btn" onclick="openAddLibrary()">+ Νέο είδος</button>`;
+  grid.innerHTML = html;
+}
+function setCategoryHome(c) { state.activeCategoryHome = c; renderLibraryHome(); }
+function openAddLibraryPrefill(name) {
+  const item = state.library.find(i => i.name === name);
+  if (item) { toast(`"${item.name}" — άνοιξε μια λίστα για να το προσθέσεις`); }
+}
+
+// ================== SHOPPING RENDER ==================
+function renderShopping() {
+  const list = currentList();
+  if (!list) { goHome(); return; }
+  document.getElementById('listNameInput').value = list.name;
+  document.getElementById('listNoteInput').value = list.note || '';
+  updateDateBadge();
+  renderCategoryTabs();
+  renderLibraryShopping();
+  renderList();
+  const unitSel = document.getElementById('manualUnit');
+  if (unitSel && !unitSel.innerHTML) unitSel.innerHTML = buildUnitOptions('τεμ.');
+}
+function updateDateBadge() {
+  const list = currentList();
+  const d = list ? new Date(list.createdAt) : new Date();
+  document.getElementById('listDateBadge').textContent =
+    `${String(d.getDate()).padStart(2,'0')} ${MONTHS_EL[d.getMonth()]} ${d.getFullYear()}`;
+}
+function saveListName() {
+  const list = currentList(); if (!list) return;
+  const v = document.getElementById('listNameInput').value.trim();
+  list.name = v || `Λίστα ${new Date(list.createdAt).toLocaleDateString('el-GR')}`;
+  saveState();
+}
+function saveListNote() {
+  const list = currentList(); if (!list) return;
+  list.note = document.getElementById('listNoteInput').value;
+  saveState();
+}
+
+function getAllCategories() {
+  const fromLib = [...new Set(state.library.map(i => i.category))];
+  return [...new Set([...BASE_CATEGORIES, ...fromLib])];
+}
+function renderCategoryTabs() {
+  const cats = ['Όλα', ...getAllCategories()];
+  document.getElementById('categoryTabs').innerHTML = cats.map(c =>
+    `<button class="cat-tab ${state.activeCategory===c?'active':''}" onclick="setCategory('${escapeAttr(c)}')">${escapeHtml(c)}</button>`
+  ).join('');
+}
+function setCategory(c) { state.activeCategory = c; renderCategoryTabs(); renderLibraryShopping(); }
+
+function renderLibraryShopping() {
+  const grid = document.getElementById('libraryGrid');
+  const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  const list = currentList();
+  const inListNames = new Set((list ? list.items : []).map(i => i.name.toLowerCase()));
+  const filtered = state.library.filter(item => {
+    const catOk = state.activeCategory === 'Όλα' || item.category === state.activeCategory;
+    const sOk = !search || item.name.toLowerCase().includes(search) || (item.description||'').toLowerCase().includes(search);
+    return catOk && sOk;
+  });
+  let html = filtered.map(item => `
+    <div class="library-item ${inListNames.has(item.name.toLowerCase())?'in-list':''}"
+         title="${escapeAttr(item.description||'')}"
+         onclick="addFromLibrary('${escapeAttr(item.name)}')">
+      <span class="emoji">${item.emoji||'📦'}</span>
+      <span class="name">${escapeHtml(item.name)}</span>
+      <button class="del-lib" onclick="event.stopPropagation(); removeFromLibrary('${escapeAttr(item.name)}')" title="Αφαίρεση από βιβλιοθήκη">✕</button>
+    </div>
+  `).join('');
+  html += `<button class="add-library-btn" onclick="openAddLibrary()">+ Νέο είδος</button>`;
+  grid.innerHTML = html;
+}
+
+function renderList() {
+  const list = currentList(); if (!list) return;
+  const cont = document.getElementById('itemsList');
+  const total = list.items.length;
+  const checked = list.items.filter(i => i.checked).length;
+  const pct = total ? Math.round(checked/total*100) : 0;
+  document.getElementById('progressLabel').textContent = `${checked}/${total} αγορασμένα`;
+  document.getElementById('progressPct').textContent = `${pct}%`;
+  document.getElementById('bigProgressFill').style.width = pct + '%';
+  if (total === 0) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">🛒</div><div>Η λίστα είναι άδεια. Πρόσθεσε είδη πάνω.</div></div>`;
+    return;
+  }
+  cont.innerHTML = list.items.map(item => `
+    <div class="list-item ${item.checked?'checked':''}">
+      <button class="check-btn ${item.checked?'checked':''}" onclick="toggleCheck('${item.id}')">${item.checked?'✓':''}</button>
+      <div class="item-main">
+        <div class="item-name"><span class="item-emoji">${item.emoji||'📦'}</span><span class="item-text">${escapeHtml(item.name)}</span></div>
+        ${item.description ? `<div class="item-description">${escapeHtml(item.description)}</div>` : ''}
+      </div>
+      <div class="qty-control">
+        <button class="qty-btn" onclick="changeQty('${item.id}', -1)">−</button>
+        <input type="number" class="qty-input" value="${item.qty}" min="0" step="any" onchange="setQty('${item.id}', this.value)">
+        <select class="unit-select-inline" onchange="handleUnitChangeItem('${item.id}', this.value, this)">${buildUnitOptions(item.unit || 'τεμ.')}</select>
+        <button class="qty-btn" onclick="changeQty('${item.id}', 1)">+</button>
+      </div>
+      <span class="user-tag" style="background:${getUserColor(item.addedBy)}">${escapeHtml(item.addedBy||'')}</span>
+      <button class="remove-btn" onclick="removeItem('${item.id}')" title="Αφαίρεση">✕</button>
+    </div>
+  `).join('');
+}
+
+// ================== LIST ACTIONS ==================
+function openNewListModal() {
+  const today = new Date();
+  const defaultName = `Λίστα ${today.toLocaleDateString('el-GR', {day:'2-digit', month:'short'})}`;
+  document.getElementById('newListName').value = defaultName;
+  document.getElementById('newListNote').value = '';
+  document.getElementById('newListModal').classList.add('open');
+  setTimeout(()=>document.getElementById('newListName').focus(), 50);
+}
+function confirmCreateList() {
+  const name = document.getElementById('newListName').value.trim() || `Λίστα ${new Date().toLocaleDateString('el-GR')}`;
+  const note = document.getElementById('newListNote').value.trim();
+  const list = {
+    id: uid(),
+    name, note,
+    createdBy: state.currentUser,
+    createdAt: new Date().toISOString(),
+    items: [],
+    status: 'active'
+  };
+  state.lists.push(list);
+  saveState();
+  closeModalAll();
+  openList(list.id);
+  toast(`Δημιουργήθηκε: "${name}"`);
+}
+
+function openListMenu() { document.getElementById('listMenuModal').classList.add('open'); }
+function duplicateCurrentList() {
+  const list = currentList(); if (!list) return;
+  const clone = {
+    id: uid(),
+    name: `${list.name} (αντίγραφο)`,
+    note: list.note,
+    createdBy: state.currentUser,
+    createdAt: new Date().toISOString(),
+    items: list.items.map(i => ({...i, id: uid(), checked: false, checkedAt: null, checkedBy: null})),
+    status: 'active'
+  };
+  state.lists.push(clone);
+  saveState(); closeModalAll();
+  openList(clone.id);
+  toast('Αντιγράφηκε ✓');
+}
+function deleteCurrentList() {
+  const list = currentList(); if (!list) return;
+  if (!confirm(`Διαγραφή της λίστας "${list.name}";`)) return;
+  state.lists = state.lists.filter(l => l.id !== list.id);
+  saveState(); closeModalAll();
+  goHome();
+  toast('Διαγράφηκε');
+}
+
+function openCompleteModal() {
+  const list = currentList(); if (!list) return;
+  const total = list.items.length;
+  const checked = list.items.filter(i => i.checked).length;
+  document.getElementById('completeSubtitle').textContent = `${list.name} · ${checked}/${total} αγορασμένα`;
+  document.getElementById('completionNoteInput').value = '';
+  document.getElementById('completeModal').classList.add('open');
+  setTimeout(()=>document.getElementById('completionNoteInput').focus(), 50);
+}
+function confirmCompleteList() {
+  const list = currentList(); if (!list) return;
+  list.status = 'completed';
+  list.completedBy = state.currentUser;
+  list.completedAt = new Date().toISOString();
+  list.completionNote = document.getElementById('completionNoteInput').value.trim();
+  saveState(); closeModalAll();
+  goHome();
+  toast(`✓ Έγιναν τα ψώνια για "${list.name}"`);
+}
+
+// ================== ITEMS ==================
+function addFromLibrary(name) {
+  const list = currentList(); if (!list) return;
+  const libItem = state.library.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if (!libItem) return;
+  const existing = list.items.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    existing.qty += 1;
+    toast(`+1 ${name}`);
+  } else {
+    list.items.push({
+      id: uid(),
+      name: libItem.name,
+      emoji: libItem.emoji || guessEmoji(libItem.name, libItem.description) || '📦',
+      description: libItem.description || '',
+      qty: 1,
+      unit: libItem.unit || 'τεμ.',
+      addedBy: state.currentUser,
+      addedAt: new Date().toISOString(),
+      checked: false
+    });
+    toast(`Προστέθηκε: ${name}`);
+  }
+  saveState(); renderList(); renderLibraryShopping();
+}
+
+function autoGuessEmoji() {
+  const name = document.getElementById('manualName').value;
+  const desc = document.getElementById('manualDescription').value;
+  const emojiInput = document.getElementById('manualEmoji');
+  if (!emojiInput.value || emojiInput.dataset.autoFilled === '1') {
+    const guess = guessEmoji(name, desc);
+    if (guess) {
+      emojiInput.value = guess;
+      emojiInput.dataset.autoFilled = '1';
+    } else if (emojiInput.dataset.autoFilled === '1') {
+      emojiInput.value = '';
+    }
+  }
+}
+function autoGuessLibEmoji() {
+  const name = document.getElementById('newLibName').value;
+  const desc = document.getElementById('newLibDescription').value;
+  const emojiInput = document.getElementById('newLibEmoji');
+  if (!emojiInput.value || emojiInput.dataset.autoFilled === '1') {
+    const guess = guessEmoji(name, desc);
+    if (guess) {
+      emojiInput.value = guess;
+      emojiInput.dataset.autoFilled = '1';
+    }
+  }
+}
+// Clear autoFilled flag on manual typing
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'manualEmoji' || e.target.id === 'newLibEmoji') {
+    delete e.target.dataset.autoFilled;
+  }
+  if (e.target.id === 'manualDescription') autoGuessEmoji();
+  if (e.target.id === 'newLibDescription') autoGuessLibEmoji();
+});
+
+function addManual() {
+  const list = currentList(); if (!list) return;
+  const name = document.getElementById('manualName').value.trim();
+  if (!name) return;
+  const desc = document.getElementById('manualDescription').value.trim();
+  let emoji = document.getElementById('manualEmoji').value.trim();
+  if (!emoji) emoji = guessEmoji(name, desc) || '✍️';
+  const qty = parseFloat(document.getElementById('manualQty').value) || 1;
+  const unitSel = document.getElementById('manualUnit');
+  const unit = (unitSel && unitSel.value && unitSel.value !== '__custom__') ? unitSel.value : 'τεμ.';
+  const existing = list.items.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    existing.qty += qty;
+    if (desc && !existing.description) existing.description = desc;
+    if (unit && unit !== 'τεμ.') existing.unit = unit;
+  } else {
+    list.items.push({
+      id: uid(),
+      name, emoji,
+      description: desc,
+      qty,
+      unit,
+      addedBy: state.currentUser,
+      addedAt: new Date().toISOString(),
+      checked: false
+    });
+  }
+  document.getElementById('manualName').value = '';
+  document.getElementById('manualEmoji').value = '';
+  document.getElementById('manualDescription').value = '';
+  document.getElementById('manualQty').value = '1';
+  if (unitSel) unitSel.innerHTML = buildUnitOptions('τεμ.');
+  document.getElementById('manualEmoji').removeAttribute('data-auto-filled');
+  toast(`Προστέθηκε: ${name}`);
+  saveState(); renderList();
+}
+
+function toggleCheck(id) {
+  const list = currentList(); if (!list) return;
+  const item = list.items.find(i => i.id === id);
+  if (!item) return;
+  item.checked = !item.checked;
+  item.checkedAt = item.checked ? new Date().toISOString() : null;
+  item.checkedBy = item.checked ? state.currentUser : null;
+  saveState(); renderList();
+}
+function changeQty(id, delta) {
+  const list = currentList(); if (!list) return;
+  const item = list.items.find(i => i.id === id);
+  if (!item) return;
+  const isFractional = item.unit && item.unit !== 'τεμ.' && item.unit !== 'πακέτα' && item.unit !== 'μπουκάλια' && item.unit !== 'κουτιά' && item.unit !== 'ρολά' && item.unit !== 'φέτες';
+  const step = isFractional ? 0.5 : 1;
+  const min = isFractional ? 0.1 : 1;
+  item.qty = Math.max(min, Math.round((item.qty + delta*step) * 100) / 100);
+  saveState(); renderList();
+}
+function setQty(id, val) {
+  const list = currentList(); if (!list) return;
+  const item = list.items.find(i => i.id === id);
+  if (!item) return;
+  const num = parseFloat(val);
+  item.qty = Math.max(0.01, isNaN(num) ? 1 : num);
+  saveState(); renderList();
+}
+function removeItem(id) {
+  const list = currentList(); if (!list) return;
+  list.items = list.items.filter(i => i.id !== id);
+  saveState(); renderList(); renderLibraryShopping();
+}
+
+// ================== LIBRARY MGMT ==================
+function openAddLibrary() {
+  const sel = document.getElementById('newLibCategory');
+  const cats = getAllCategories();
+  sel.innerHTML = cats.map(c=>`<option>${escapeHtml(c)}</option>`).join('') + '<option value="__new__">+ Νέα κατηγορία...</option>';
+  document.getElementById('newLibName').value = '';
+  document.getElementById('newLibEmoji').value = '';
+  document.getElementById('newLibDescription').value = '';
+  document.getElementById('newCatName').value = '';
+  document.getElementById('newCatWrap').style.display = 'none';
+  document.getElementById('newLibUnit').innerHTML = buildUnitOptions('τεμ.');
+  document.getElementById('addLibModal').classList.add('open');
+  setTimeout(()=>document.getElementById('newLibName').focus(), 50);
+}
+function saveNewLibraryItem() {
+  const name = document.getElementById('newLibName').value.trim();
+  const desc = document.getElementById('newLibDescription').value.trim();
+  let emoji = document.getElementById('newLibEmoji').value.trim();
+  if (!emoji) emoji = guessEmoji(name, desc) || '📦';
+  let category = document.getElementById('newLibCategory').value;
+  if (category === '__new__') {
+    category = document.getElementById('newCatName').value.trim();
+    if (!category) { alert('Δώσε όνομα κατηγορίας.'); return; }
+  }
+  const unitSel = document.getElementById('newLibUnit');
+  const unit = (unitSel && unitSel.value && unitSel.value !== '__custom__') ? unitSel.value : 'τεμ.';
+  if (!name) return;
+  if (state.library.find(i => i.name.toLowerCase() === name.toLowerCase())) {
+    alert('Το είδος υπάρχει ήδη.');
+    return;
+  }
+  state.library.push({ name, emoji, category, description: desc, unit });
+  saveState();
+  closeModalAll();
+  if (state.view === 'shopping') { renderCategoryTabs(); renderLibraryShopping(); }
+  renderLibraryHome();
+  toast(`Προστέθηκε στη βιβλιοθήκη: ${name}`);
+}
+function removeFromLibrary(name) {
+  if (!confirm(`Αφαίρεση "${name}" από τη βιβλιοθήκη;`)) return;
+  state.library = state.library.filter(i => i.name !== name);
+  saveState();
+  if (state.view === 'shopping') renderLibraryShopping();
+  renderLibraryHome();
+}
+
+// ================== VIEW COMPLETED LIST ==================
+function viewCompletedList(id) {
+  const list = state.lists.find(l => l.id === id);
+  if (!list) return;
+  _completedViewId = id;
+  document.getElementById('vcTitle').textContent = list.name;
+  const d = new Date(list.completedAt || list.createdAt);
+  const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const total = list.items.length;
+  const checked = list.items.filter(i => i.checked).length;
+  document.getElementById('vcMeta').textContent = `📅 ${dateStr} · ${checked}/${total} αγορασμένα · ${list.completedBy||list.createdBy}${list.note?' · '+list.note:''}`;
+  const cn = document.getElementById('vcCompletionNote');
+  if (list.completionNote) {
+    cn.textContent = '💬 ' + list.completionNote;
+    cn.style.display = 'block';
+  } else { cn.style.display = 'none'; }
+  document.getElementById('vcItems').innerHTML = list.items.map(i =>
+    `<div>${i.checked?'✅ <s>':'▫️ '}${i.emoji||'📦'} ${escapeHtml(i.name)} — <b>${i.qty}</b> ${escapeHtml(i.unit||'τεμ.')}${i.description?' <span style="color:var(--muted);font-style:italic">('+escapeHtml(i.description)+')</span>':''}${i.checked?'</s>':''}</div>`
+  ).join('');
+  document.getElementById('viewCompletedModal').classList.add('open');
+}
+function deleteCompletedListFromModal() {
+  if (!_completedViewId) return;
+  const list = state.lists.find(l => l.id === _completedViewId);
+  if (!list || !confirm(`Διαγραφή της "${list.name}";`)) return;
+  state.lists = state.lists.filter(l => l.id !== _completedViewId);
+  _completedViewId = null;
+  saveState(); closeModalAll(); renderHome();
+  toast('Διαγράφηκε');
+}
+function reopenCompletedListFromModal() {
+  if (!_completedViewId) return;
+  const list = state.lists.find(l => l.id === _completedViewId);
+  if (!list) return;
+  list.status = 'active';
+  list.completedAt = null;
+  list.completedBy = null;
+  saveState(); closeModalAll();
+  openList(list.id);
+  toast('Επαναφορά ως ενεργή');
+}
+function duplicateCompletedListFromModal() {
+  if (!_completedViewId) return;
+  const src = state.lists.find(l => l.id === _completedViewId);
+  if (!src) return;
+  const clone = {
+    id: uid(),
+    name: `${src.name} (νέα)`,
+    note: src.note,
+    createdBy: state.currentUser,
+    createdAt: new Date().toISOString(),
+    items: src.items.map(i => ({...i, id: uid(), checked: false, checkedAt: null, checkedBy: null})),
+    status: 'active'
+  };
+  state.lists.push(clone);
+  saveState(); closeModalAll();
+  openList(clone.id);
+  toast('Αντιγράφηκε ως νέα λίστα ✓');
+}
+
+// ================== SHARE ==================
+function openShareModal() {
+  const list = currentList();
+  if (!list || list.items.length === 0) { toast('Η λίστα είναι άδεια'); return; }
+  const payload = {
+    v: 3,
+    from: state.currentUser,
+    name: list.name,
+    note: list.note || '',
+    date: new Date().toISOString(),
+    items: list.items.map(i => ({n:i.name, e:i.emoji, q:i.qty, un:i.unit||'τεμ.', d:i.description||'', u:i.addedBy, c:i.checked}))
+  };
+  const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
+  const url = window.location.origin + window.location.pathname + '#list=' + compressed;
+  document.getElementById('shareUrl').value = url;
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    document.getElementById('qrCode').innerHTML = qr.createImgTag(4, 8);
+  } catch(e) {
+    document.getElementById('qrCode').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px">Η λίστα είναι μεγάλη για QR — χρησιμοποίησε το link.</div>';
+  }
+  document.getElementById('shareModal').classList.add('open');
+}
+function copyShareUrl() {
+  const url = document.getElementById('shareUrl').value;
+  navigator.clipboard.writeText(url).then(()=>toast('Link αντιγράφηκε ✓'));
+}
+function nativeShare() {
+  const url = document.getElementById('shareUrl').value;
+  const list = currentList();
+  const title = `🛒 ${list?list.name:'Λίστα Ψωνιών'}`;
+  const text = `${state.currentUser} σου στέλνει λίστα ψωνιών. Άνοιξε το link για να τσεκάρεις τι αγόρασες:`;
+  if (navigator.share) {
+    navigator.share({ title, text, url }).catch(()=>copyShareUrl());
+  } else {
+    copyShareUrl();
+  }
+}
+function shareAsText() {
+  const list = currentList(); if (!list) return;
+  const d = new Date(list.createdAt);
+  const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  let text = `🛒 ${list.name} - ${dateStr}${list.note?' · '+list.note:''}\n\n`;
+  list.items.forEach(i => {
+    text += `${i.checked?'✅':'▫️'} ${i.emoji||''} ${i.name}${i.description?' ('+i.description+')':''} — ${i.qty} ${i.unit||'τεμ.'}\n`;
+  });
+  closeModalAll();
+  if (navigator.share) {
+    navigator.share({ title: list.name, text }).catch(()=>copyToClipboard(text));
+  } else {
+    copyToClipboard(text);
+  }
+}
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(()=>toast('Αντιγράφηκε στο πρόχειρο ✓'));
+}
+
+function checkForSharedList() {
+  const hash = window.location.hash || '';
+  if (!hash.startsWith('#list=')) return;
+  const encoded = hash.substring(6);
+  try {
+    const json = LZString.decompressFromEncodedURIComponent(encoded);
+    if (!json) throw new Error('empty');
+    const payload = JSON.parse(json);
+    const info = document.getElementById('receiveInfo');
+    const d = new Date(payload.date);
+    const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    const name = payload.name || 'Λίστα ψωνιών';
+    info.innerHTML = `<b>${escapeHtml(payload.from)}</b> σου έστειλε: <b>${escapeHtml(name)}</b><br>
+      <span style="font-size:13px;color:var(--muted)">${dateStr}${payload.note?' · '+escapeHtml(payload.note):''} · ${payload.items.length} είδη</span>`;
+    document.getElementById('receivePreview').innerHTML = payload.items.map(i =>
+      `${i.c?'✅ <s>':'▫️ '}${i.e||'📦'} ${escapeHtml(i.n)} — <b>${i.q}</b> ${escapeHtml(i.un||'τεμ.')}${i.d?' <span style="color:var(--muted);font-style:italic">('+escapeHtml(i.d)+')</span>':''}${i.c?'</s>':''}`
+    ).join('<br>');
+    window._receivedPayload = payload;
+    document.getElementById('receiveModal').classList.add('open');
+  } catch(e) {
+    toast('Το link δεν είναι έγκυρο');
+    history.replaceState(null, '', window.location.pathname);
+  }
+}
+function acceptReceive() {
+  const payload = window._receivedPayload;
+  if (!payload) return;
+  const list = {
+    id: uid(),
+    name: payload.name || 'Λίστα από ' + payload.from,
+    note: payload.note || '',
+    createdBy: payload.from,
+    createdAt: payload.date || new Date().toISOString(),
+    items: payload.items.map(i => ({
+      id: uid(),
+      name: i.n, emoji: i.e, description: i.d || '',
+      qty: i.q, unit: i.un || 'τεμ.', addedBy: i.u, checked: !!i.c
+    })),
+    status: 'active'
+  };
+  // Auto-add any unknown user names from the received list so tags get colored properly
+  const seenNames = new Set([payload.from, ...payload.items.map(i => i.u).filter(Boolean)]);
+  seenNames.forEach(n => {
+    if (!state.users.find(u => u.name === n)) {
+      state.users.push({ id: 'u_' + uid(), name: n, color: pickNextColor() });
+    }
+  });
+  state.lists.push(list);
+  // Auto-switch to a different user than the sender, if we have one
+  if (state.users.length > 1) {
+    const other = state.users.find(u => u.name !== payload.from);
+    if (other) state.currentUser = other.name;
+  }
+  saveState();
+  renderUserPicker();
+  closeModalAll();
+  history.replaceState(null, '', window.location.pathname);
+  openList(list.id);
+  toast(`Φορτώθηκε "${list.name}" — τσέκαρε ό,τι αγοράζεις`);
+}
+function dismissReceive() {
+  closeModalAll();
+  history.replaceState(null, '', window.location.pathname);
+}
+
+// ================== BACKUP ==================
+function exportBackup() {
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const now = new Date();
+  const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  a.href = url;
+  a.download = `lista-psonion-backup-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  state.lastBackup = new Date().toISOString();
+  saveState();
+  toast('Το αρχείο κατέβηκε ✓');
+}
+function importBackup(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!confirm('Θα αντικατασταθούν όλα τα τρέχοντα δεδομένα. Συνέχεια;')) return;
+      state = { ...state, ...data };
+      saveState();
+      loadState();
+      renderHome();
+      toast('Επαναφορά ολοκληρώθηκε ✓');
+    } catch(err) { alert('Μη έγκυρο αρχείο.'); }
+  };
+  reader.readAsText(file);
+  ev.target.value = '';
+}
+// Banner logic removed — auto-snapshots handle backup silently.
+
+// ================== SECTIONS TOGGLE ==================
+function toggleSection(name) {
+  state.sections[name] = !state.sections[name];
+  const idMap = { completed: 'completedBody', library: 'libraryHomeBody', backup: 'backupBody' };
+  const headerMap = {
+    completed: document.querySelector('[onclick*="toggleSection(\'completed\')"]'),
+    library: document.querySelector('[onclick*="toggleSection(\'library\')"]'),
+    backup: document.querySelector('[onclick*="toggleSection(\'backup\')"]'),
+  };
+  const body = document.getElementById(idMap[name]);
+  const header = headerMap[name];
+  const isCollapsed = !state.sections[name];
+  body.classList.toggle('collapsed', isCollapsed);
+  if (header) header.classList.toggle('collapsed', isCollapsed);
+  saveState();
+}
+function initSectionsUI() {
+  ['completed','library','backup'].forEach(name => {
+    const idMap = { completed: 'completedBody', library: 'libraryHomeBody', backup: 'backupBody' };
+    const body = document.getElementById(idMap[name]);
+    const header = document.querySelector(`[onclick*="toggleSection('${name}')"]`);
+    const isCollapsed = !state.sections[name];
+    body.classList.toggle('collapsed', isCollapsed);
+    if (header) header.classList.toggle('collapsed', isCollapsed);
+  });
+}
+
+// ================== MODALS ==================
+function closeModalAll() {
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', (e) => {
+  if (e.target.classList && e.target.classList.contains('modal-backdrop')) {
+    e.target.classList.remove('open');
+  }
+});
+
+// ================== UTILS ==================
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function escapeHtml(s) { return String(s==null?'':s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(s) { return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// ================== INIT ==================
+loadState();
+renderUserPicker();
+initSectionsUI();
+if (state.view === 'shopping' && state.activeListId && state.lists.find(l => l.id === state.activeListId && l.status === 'active')) {
+  document.getElementById('homeView').style.display = 'none';
+  document.getElementById('shoppingView').style.display = '';
+  renderShopping();
+} else {
+  state.view = 'home';
+  renderHome();
+}
+takeSnapshotIfNeeded();
+checkForSharedList();
+
+// Cross-tab live sync on same device
+window.addEventListener('storage', (e) => {
+  if (e.key === STORAGE_KEY) {
+    loadState();
+    if (state.view === 'shopping' && currentList()) renderShopping();
+    else renderHome();
+  }
+});
+window.addEventListener('hashchange', checkForSharedList);
+
+// Refresh completed count if user leaves the tab open past midnight
+setInterval(() => {
+  if (state.view === 'shopping') updateDateBadge();
+}, 60000);
+</script>
+</body>
+</html>
