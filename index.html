@@ -662,7 +662,7 @@ h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap:
 
   <header class="card">
     <div class="top-row">
-      <h1>🛒 Λίστα Ψωνιών <span class="live-label"><span class="live-dot"></span>live</span></h1>
+      <h1>🛒 Λίστα Ψωνιών <span class="live-label" id="syncIndicator"><span class="live-dot"></span>συγχρονισμός</span></h1>
       <div class="user-picker" id="userPicker"></div>
     </div>
   </header>
@@ -775,18 +775,6 @@ h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap:
   </div>
 
   <!-- ================ MODALS ================ -->
-
-  <!-- Cloud sync modal -->
-  <div class="modal-backdrop" id="syncModal">
-    <div class="modal">
-      <h3>☁ Live Sync μεταξύ κινητών</h3>
-      <div id="syncBody"></div>
-      <div class="modal-actions">
-        <button class="btn btn-danger" id="disconnectBtn" onclick="disconnectRoom()" style="display:none">Αποσύνδεση</button>
-        <button class="btn btn-secondary" onclick="closeModalAll()">Κλείσιμο</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Manage users modal -->
   <div class="modal-backdrop" id="manageUsersModal">
@@ -1119,7 +1107,6 @@ let state = {
   activeCategory: 'Όλα',
   activeCategoryHome: 'Όλα',
   lastBackup: null,
-  syncRoom: null,            // Firebase room code if connected
   sections: {                // collapsible state
     completed: false,
     library: false,
@@ -1144,7 +1131,7 @@ function saveStateLocal() {
 let _pushTimer = null;
 function saveState() {
   saveStateLocal();
-  if (currentRoom && !_applyingRemote) {
+  if (!_applyingRemote && roomRef) {
     clearTimeout(_pushTimer);
     _pushTimer = setTimeout(pushToRoom, 300);
   }
@@ -1300,7 +1287,7 @@ function migrateOldState() {
   } catch(e) { console.warn('migrate failed', e); }
 }
 
-// ================== FIREBASE SYNC ==================
+// ================== FIREBASE SYNC (auto — no rooms) ==================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAcKQOy3Jdy4XCI3GH9ExJdmF2Ay0-Wpi0",
   authDomain: "lista-psonion.firebaseapp.com",
@@ -1311,103 +1298,39 @@ const FIREBASE_CONFIG = {
   appId: "1:348450497577:web:d2574788e89e808eb36838"
 };
 
+// Everyone who opens this app connects to the SAME shared workspace.
+// No rooms, no codes — the URL itself is the "key".
+const SHARED_PATH = 'shared';
+
 let fbApp = null;
 let fbDb = null;
-let currentRoom = null;
 let roomRef = null;
 let _lastSyncJson = null;
 let _applyingRemote = false;
 let _fbConnected = false;
 
-function initFirebase() {
-  if (typeof firebase === 'undefined') {
-    console.warn('Firebase SDK not loaded');
-    return false;
+function initFirebaseAuto() {
+  if (typeof firebase === 'undefined') { updateSyncIndicator(); return; }
+  if (fbApp) return;
+  try {
+    fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    fbDb = firebase.database();
+    fbDb.ref('.info/connected').on('value', (snap) => {
+      _fbConnected = snap.val() === true;
+      updateSyncIndicator();
+    });
+    roomRef = fbDb.ref(SHARED_PATH);
+    roomRef.on('value', onRoomData);
+  } catch(e) {
+    console.error('Firebase init failed:', e);
+    updateSyncIndicator();
   }
-  if (!fbApp) {
-    try {
-      fbApp = firebase.initializeApp(FIREBASE_CONFIG);
-      fbDb = firebase.database();
-      fbDb.ref('.info/connected').on('value', (snap) => {
-        _fbConnected = snap.val() === true;
-        updateSyncIndicator();
-      });
-    } catch(e) { console.error('Firebase init failed:', e); return false; }
-  }
-  return true;
-}
-
-function generateRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing 0/O/1/I
-  let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
-
-function joinRoom(code) {
-  if (!initFirebase()) return false;
-  if (roomRef) { try { roomRef.off('value', onRoomData); } catch(e) {} }
-  currentRoom = code;
-  state.syncRoom = code;
-  _lastSyncJson = null;
-  saveStateLocal();
-  roomRef = fbDb.ref('rooms/' + code);
-  roomRef.on('value', onRoomData);
-  updateSyncIndicator();
-  return true;
-}
-
-function createNewRoom() {
-  const code = generateRoomCode();
-  if (!initFirebase()) { alert('Δεν ήταν δυνατή η σύνδεση στο Firebase.'); return; }
-  currentRoom = code;
-  state.syncRoom = code;
-  _lastSyncJson = null;
-  saveStateLocal();
-  roomRef = fbDb.ref('rooms/' + code);
-  // Seed the room with our current state first
-  pushToRoom();
-  // Then subscribe to future changes
-  roomRef.on('value', onRoomData);
-  updateSyncIndicator();
-  renderSyncModal();
-  toast(`✅ Δωμάτιο ${code} δημιουργήθηκε`);
-}
-
-function joinRoomFromInput() {
-  const input = document.getElementById('joinRoomCode');
-  const code = (input.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if (code.length !== 6) {
-    alert('Ο κωδικός πρέπει να έχει 6 χαρακτήρες (γράμματα και αριθμοί).');
-    return;
-  }
-  const haveData = state.lists.length > 0;
-  if (haveData) {
-    if (!confirm('⚠ Τα τοπικά σου δεδομένα θα αντικατασταθούν από τα δεδομένα του δωματίου (εφόσον υπάρχουν).\n\nΣυνέχεια;')) return;
-  }
-  if (joinRoom(code)) {
-    renderSyncModal();
-    toast(`Σύνδεση στο δωμάτιο ${code}...`);
-  }
-}
-
-function disconnectRoom() {
-  if (!confirm('Αποσύνδεση από το δωμάτιο; Τα δεδομένα σου παραμένουν τοπικά αλλά δεν θα συγχρονίζονται πλέον.')) return;
-  if (roomRef) { try { roomRef.off('value', onRoomData); } catch(e) {} }
-  roomRef = null;
-  currentRoom = null;
-  state.syncRoom = null;
-  _lastSyncJson = null;
-  saveStateLocal();
-  updateSyncIndicator();
-  renderSyncModal();
-  toast('Αποσυνδέθηκες');
 }
 
 function onRoomData(snapshot) {
   const remote = snapshot.val();
   if (!remote) {
-    // Empty room — seed with our local state
+    // Shared workspace empty — seed with our local state
     pushToRoom();
     return;
   }
@@ -1423,7 +1346,6 @@ function onRoomData(snapshot) {
     if (Array.isArray(remote.lists)) state.lists = remote.lists;
     if (Array.isArray(remote.library)) state.library = remote.library;
     if (Array.isArray(remote.customUnits)) state.customUnits = remote.customUnits;
-    // Make sure currentUser is still valid
     if (!state.users.find(u => u.name === state.currentUser) && state.users.length) {
       state.currentUser = state.users[0].name;
     }
@@ -1435,11 +1357,11 @@ function onRoomData(snapshot) {
     _applyingRemote = false;
   }
   const who = remote._lastUser && remote._lastUser !== state.currentUser ? ` από ${remote._lastUser}` : '';
-  toast(`🔄 Ενημέρωση${who}`);
+  if (who) toast(`🔄 Ενημέρωση${who}`);
 }
 
 function pushToRoom() {
-  if (!currentRoom || !roomRef) return;
+  if (!roomRef) return;
   const payload = {
     users: state.users || [],
     lists: state.lists || [],
@@ -1456,72 +1378,22 @@ function pushToRoom() {
   _lastSyncJson = json;
   roomRef.set(payload).catch(err => {
     console.warn('Push failed:', err);
-    toast('⚠ Αποτυχία sync — έλεγξε σύνδεση');
   });
 }
 
-function openSyncModal() {
-  renderSyncModal();
-  document.getElementById('syncModal').classList.add('open');
-}
-function renderSyncModal() {
-  const body = document.getElementById('syncBody');
-  const dcBtn = document.getElementById('disconnectBtn');
-  if (currentRoom) {
-    const connIndicator = _fbConnected
-      ? '<span style="color:var(--success);font-weight:600">● Online</span>'
-      : '<span style="color:var(--danger);font-weight:600">● Offline (θα συγχρονιστεί όταν επανέλθει)</span>';
-    body.innerHTML = `
-      <p class="modal-sub">${connIndicator} · Συνδεδεμένος στο δωμάτιο:</p>
-      <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);padding:20px;border-radius:12px;text-align:center;margin:12px 0">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Κωδικός Δωματίου</div>
-        <div style="font-family:monospace;font-size:32px;font-weight:700;letter-spacing:4px;color:var(--primary)">${escapeHtml(currentRoom)}</div>
-      </div>
-      <p style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px">
-        📱 Πες σε άλλη συσκευή να ανοίξει την εφαρμογή → ☁ Sync → «Μπες σε δωμάτιο» → και να βάλει αυτόν τον κωδικό.
-      </p>
-      <div style="display:flex;gap:8px;justify-content:center">
-        <button class="btn btn-secondary btn-small" onclick="copyRoomCode()">📋 Copy κωδικό</button>
-        <button class="btn btn-secondary btn-small" onclick="shareRoomCode()">📤 Share</button>
-      </div>
-    `;
-    dcBtn.style.display = '';
-  } else {
-    body.innerHTML = `
-      <p class="modal-sub">Συγχρόνισε τα δεδομένα σε πραγματικό χρόνο μεταξύ 2+ κινητών.</p>
-      <div style="margin:16px 0">
-        <button class="btn" onclick="createNewRoom()" style="width:100%;padding:14px">✨ Δημιούργησε νέο δωμάτιο</button>
-        <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:6px">Θα πάρεις κωδικό 6 χαρακτήρων για να τον στείλεις</div>
-      </div>
-      <div style="text-align:center;color:var(--muted);font-size:12px;margin:16px 0;position:relative">
-        <span style="background:white;padding:0 12px;position:relative;z-index:1">— ή —</span>
-        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--border)"></div>
-      </div>
-      <label>Μπες σε υπάρχον δωμάτιο</label>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="joinRoomCode" placeholder="ABC123" maxlength="6" style="flex:1;text-transform:uppercase;letter-spacing:4px;text-align:center;font-family:monospace;font-size:18px;font-weight:600" onkeydown="if(event.key==='Enter') joinRoomFromInput()">
-        <button class="btn" onclick="joinRoomFromInput()">Είσοδος</button>
-      </div>
-    `;
-    dcBtn.style.display = 'none';
-    setTimeout(() => { const i = document.getElementById('joinRoomCode'); if (i) i.focus(); }, 50);
-  }
-}
-function copyRoomCode() {
-  if (!currentRoom) return;
-  navigator.clipboard.writeText(currentRoom).then(()=>toast(`Κωδικός ${currentRoom} αντιγράφηκε ✓`));
-}
-function shareRoomCode() {
-  if (!currentRoom) return;
-  const text = `Μπες στη λίστα ψωνιών μας! Άνοιξε την εφαρμογή → ☁ Sync → βάλε τον κωδικό: ${currentRoom}`;
-  if (navigator.share) {
-    navigator.share({ title: 'Live Sync', text }).catch(()=>copyRoomCode());
-  } else {
-    copyRoomCode();
-  }
-}
 function updateSyncIndicator() {
-  renderUserPicker();
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  const dot = el.querySelector('.live-dot');
+  if (_fbConnected) {
+    el.childNodes[1] && (el.lastChild.textContent = 'συγχρονισμός');
+    if (dot) dot.style.background = 'var(--success)';
+    el.style.color = 'var(--muted)';
+  } else {
+    el.lastChild.textContent = 'offline';
+    if (dot) dot.style.background = '#9ca3af';
+    el.style.color = '#9ca3af';
+  }
 }
 
 // ================== USERS ==================
@@ -1543,13 +1415,7 @@ function renderUserPicker() {
     return `<button class="user-btn ${active?'active':''}" style="${style}" onclick="setUser('${escapeAttr(u.name)}')">👤 ${escapeHtml(u.name)}</button>`;
   }).join('');
   const manageBtn = `<button class="user-btn manage-btn" onclick="openManageUsers()" title="Διαχείριση ατόμων">⚙</button>`;
-  const syncActive = !!currentRoom;
-  const syncStyle = syncActive
-    ? `background:#dcfce7;color:#166534;font-weight:700;padding:8px 10px`
-    : `color:var(--muted);padding:8px 10px`;
-  const syncLabel = syncActive ? `☁ ${escapeHtml(currentRoom)}` : '☁';
-  const syncBtn = `<button class="user-btn manage-btn sync-btn" onclick="openSyncModal()" title="Live sync μεταξύ κινητών" style="${syncStyle}">${syncLabel}</button>`;
-  picker.innerHTML = btns + manageBtn + syncBtn;
+  picker.innerHTML = btns + manageBtn;
 }
 function setUser(name, save=true) {
   state.currentUser = name;
@@ -2462,10 +2328,8 @@ if (state.view === 'shopping' && state.activeListId && state.lists.find(l => l.i
   renderHome();
 }
 takeSnapshotIfNeeded();
-// Auto-reconnect to sync room if previously connected
-if (state.syncRoom) {
-  setTimeout(() => joinRoom(state.syncRoom), 300);
-}
+// Auto-connect to shared cloud workspace on load
+initFirebaseAuto();
 checkForSharedList();
 
 // Cross-tab live sync on same device
